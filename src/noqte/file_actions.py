@@ -11,7 +11,7 @@ from pathlib import Path
 
 from wcmatch import glob
 
-from noqte.config import DotfileTarget
+from noqte.config import DotfileTarget, get_real_user_home
 from noqte.crypt import (
     PassphraseSession,
     archive_dir_to_memory,
@@ -34,6 +34,29 @@ def is_symlink_safeguard(path: Path, label: str) -> bool:
         log_warn(f"Skipping {label} '{path}': Symlinks are ignored by safety policy.")
         return True
     return False
+
+
+def is_safe_to_remove_dir(path: Path) -> bool:
+    """Safeguard against destructive deletion of system roots, homes, or shallow paths."""
+    resolved = path.resolve()
+
+    # filesystem root or anchor (e.g. '/')
+    if resolved == Path("/") or resolved == Path(resolved.anchor):
+        return False
+
+    # direct top-level system directories (e.g. '/etc', '/usr', '/home', '/var')
+    if len(resolved.parts) <= 2:
+        return False
+
+    # user's home directory root (e.g. '/home/username' or '/Users/username')
+    try:
+        real_home = get_real_user_home().resolve()
+        if resolved == real_home or resolved == Path.home().resolve():
+            return False
+    except (RuntimeError, OSError):
+        pass
+
+    return True
 
 
 def safe_copy_file(
@@ -74,8 +97,8 @@ def safe_copy_file(
                 log_warn(f"Failed to restore original mode on '{dest}': {e}")
 
 
-def is_pattern_matched(rel_path_str: str, patterns: list[str]) -> bool:
-    formatted: list[str] = []
+def is_pattern_matched(rel_path_str: str, patterns: list) -> bool:
+    formatted: list = []
     for p in patterns:
         clean = p.rstrip("/")
         formatted.append(p)
@@ -86,8 +109,8 @@ def is_pattern_matched(rel_path_str: str, patterns: list[str]) -> bool:
 
 def build_allowed_paths(
     src_dir: Path,
-    exclude_patterns: list[str] | None,
-    include_patterns: list[str] | None,
+    exclude_patterns: list | None,
+    include_patterns: list | None,
 ) -> set[Path] | None:
     if not exclude_patterns and not include_patterns:
         return None
@@ -123,12 +146,12 @@ def build_allowed_paths(
     return allowed
 
 
-def create_ignore_callback(src_dir: Path, allowed_paths: set[Path] | None) -> Callable[[str, list[str]], set[str]] | None:
+def create_ignore_callback(src_dir: Path, allowed_paths: set[Path] | None) -> Callable[[str, list], set] | None:
     if allowed_paths is None:
         return None
 
-    def ignore_callback(dir_path: str, names: list[str]) -> set[str]:
-        ignored: set[str] = set()
+    def ignore_callback(dir_path: str, names: list) -> set:
+        ignored: set = set()
         try:
             rel_dir = Path(dir_path).relative_to(src_dir)
         except ValueError:
@@ -147,8 +170,8 @@ def transfer_path(
     src: Path,
     dest: Path,
     overwrite: bool = False,
-    exclude: list[str] | None = None,
-    include: list[str] | None = None,
+    exclude: list | None = None,
+    include: list | None = None,
     temporarily_own: bool = True,
     dry_run: bool = False,
 ) -> bool:
@@ -168,6 +191,9 @@ def transfer_path(
                 copy_func(src, dest)
                 return True
             if dest.is_dir() and overwrite:
+                if not is_safe_to_remove_dir(dest):
+                    log_error(f"Just saved your life. Deletion of dangerous directory  prevented '{dest}'")
+                    return False
                 shutil.rmtree(dest)
 
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -209,6 +235,9 @@ def transfer_path(
 
                 subprocess.run(["sudo", "mkdir", "-p", str(dest.parent)], check=True)
                 if overwrite and dest.exists() and dest.is_dir():
+                    if not is_safe_to_remove_dir(dest):
+                        log_error(f"Just saved your life. Deletion of dangerous directory  prevented '{dest}'")
+                        return False
                     subprocess.run(["sudo", "rm", "-rf", str(dest)], check=True)
 
                 if src.is_dir():
@@ -303,6 +332,9 @@ def extract_tar_bytes(
         if dest_dir.is_file():
             dest_dir.unlink()
         elif dest_dir.is_dir() and overwrite:
+            if not is_safe_to_remove_dir(dest_dir):
+                log_error(f"Just saved your life. Deletion of dangerous directory  prevented '{dest_dir}'")
+                return False
             shutil.rmtree(dest_dir)
 
     try:
@@ -320,6 +352,9 @@ def extract_tar_bytes(
                     tar.extractall(stage_dir, filter="data")
                 subprocess.run(["sudo", "mkdir", "-p", str(dest_dir)], check=True)
                 if overwrite and dest_dir.exists() and dest_dir.is_dir():
+                    if not is_safe_to_remove_dir(dest_dir):
+                        log_error(f"Safety abort: Refusing elevated deletion of dangerous directory '{dest_dir}'")
+                        return False
                     subprocess.run(["sudo", "rm", "-rf", str(dest_dir)], check=True)
                 subprocess.run(["sudo", "cp", "-a", "-T", str(stage_dir), str(dest_dir)], check=True)
                 return True

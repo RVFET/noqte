@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import sys
+
 from rich.table import Table
 
 from noqte.config import NoqteConfig, PackageTarget
-from noqte.logger import console, log_step
+from noqte.logger import console, log_error, log_step
 from noqte.managers.base import PackageManager
 from noqte.managers.brew import BrewManager
 from noqte.managers.flatpak import FlatpakManager
@@ -29,12 +31,29 @@ def execute_package_pipeline(
     preflight: bool = True,
     dry_run: bool = False,
 ) -> None:
-    log_step(f"Auditing packages for platform: [bold]{current_os}[/bold]")
+    log_step(f"Auditing packages for platform: {current_os}")
 
     manager_groups: dict[str, list[PackageTarget]] = {}
     for pkg in config.packages:
         if not pkg.is_applicable(current_os):
             continue
+
+        target_name = pkg.name
+        if current_os == "darwin":
+            if isinstance(pkg.mac, str):
+                target_name = pkg.mac
+            elif pkg.mac is not None and pkg.mac.name:
+                target_name = pkg.mac.name
+
+        target_name = target_name.strip()
+        if target_name.startswith("-") or "--" in target_name:
+            log_error(
+                f"Fatal: Invalid package declaration '{target_name}' in noqte.yaml.\n"
+                f"       Package names cannot start with a dash or contain '--'.\n"
+                f"       If you are trying to pass CLI flags, remove them: noqte handles flags internally.\n"
+                f"       If you believe this was an unexpected outcome, please open an issue on github."
+            )
+            sys.exit(1)
 
         mgr_name = pkg.manager
         if mgr_name == "pacman" and current_os == "darwin":

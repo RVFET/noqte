@@ -27,7 +27,7 @@ def get_log_file_path() -> Path:
             shutil.chown(log_dir, user=uid, group=gid)
             if log_file.exists():
                 shutil.chown(log_file, user=uid, group=gid)
-        except Exception:
+        except (OSError, LookupError):
             pass
 
     return log_file

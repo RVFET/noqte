@@ -2,6 +2,7 @@
 
 [![Lint](https://github.com/RVFET/noqte/actions/workflows/lint.yml/badge.svg)](https://github.com/RVFET/noqte/actions/workflows/lint.yml)
 [![Tests](https://github.com/RVFET/noqte/actions/workflows/test.yml/badge.svg)](https://github.com/RVFET/noqte/actions/workflows/test.yml)
+[![Security](https://github.com/RVFET/noqte/actions/workflows/security.yml/badge.svg)](https://github.com/RVFET/noqte/actions/workflows/security.yml)
 [![Python Version](https://img.shields.io/badge/python-%3E%3D3.12-3776AB.svg?logo=python&logoColor=white)](https://www.python.org)
 [![Ruff](https://img.shields.io/badge/ruff-%3E%3D0.6.0-261230.svg?logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
@@ -256,5 +257,19 @@ Yes. While `pacman`/`paru`, Homebrew (formulae + casks), `flatpak`, and `ir` (in
 Contributions are welcome and encouraged.
 
 If you have ideas for new package managers, platform fixes, or improvements, feel free to open a PR or an issue.
+
+Before submitting a pull request, its recommended to ensure your changes pass all local quality checks to reduce conflicts:
+
+```bash
+# Linting & Formatting
+uv run ruff check .
+uv run ruff format --check .
+
+# Test Suite
+uv run pytest
+
+# Security Audit
+uv run bandit -c pyproject.toml -r .
+```
 
 **A note on code quality:** If you lack the time or skills to implement a feature cleanly yourself, **please open an issue instead**. A clear, thoughtful feature request or bug report is infinitely more valuable than submitting untested, unreviewed, completely AI-generated pull requests. If you submit a PR, make sure you understand the code, tested it against a real filesystem, and kept it clean.
