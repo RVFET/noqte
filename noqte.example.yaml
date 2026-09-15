@@ -1,0 +1,71 @@
+# ==============================================================================
+# noqte Configuration Manifest
+# ==============================================================================
+
+# Target location of this dotfiles repository on your machine
+repo_path: "~/dotfiles"
+
+# Operational safety toggles (all default to true if omitted)
+settings:
+  backup: true        # Mandatory local tar.gz archive in ~/.dotfiles-backups prior to changes
+  git_backup: true    # Create snapshot branch in git repo on 'to-host'
+  preflight: true     # Run OS upgrade before installing packages to prevent dependency breakage
+
+# Package Management Layer
+packages:
+  # CLI & Core Tools (default manager is pacman on Linux, brew on macOS)
+  - name: "eza"
+  - name: "bat"
+  - name: "ripgrep"
+  - name: "choose"
+    mac: "choose-rust"
+  - name: "github-cli"
+    mac: "gh"
+  - name: "inotify-tools"
+    os: ["linux"]
+
+  # GUI Applications
+  - name: "ghostty"
+    mac:
+      cask: true
+  - name: "obs-studio"
+    mac:
+      name: "obs"
+      cask: true
+
+  # Flatpak Layer
+  - name: "chat.simplex.simplex"
+    manager: "flatpak"
+    mac:
+      name: "simplex"
+      cask: true
+  - name: "com.github.tchx84.Flatseal"
+    manager: "flatpak"
+    os: ["linux"]
+
+  # Install-Release (ir) GitHub Binaries
+  - name: "https://github.com/starship/starship"
+    manager: "ir"
+  - name: "https://github.com/d10n/mullvad-tui"
+    manager: "ir"
+
+# Dotfile Configurations Layer
+configs:
+  - name: ".zshrc"
+    dest: "~/.zshrc"
+  - name: "ghostty"
+    dest: "~/.config/ghostty"
+  - name: "yazi"
+    dest: "~/.config/yazi"
+    include:
+      - "**/*.{toml,yaml,yml,xml,json,lua}"
+  - name: "micro/plug"
+    dest: "~/.config/micro/plug"
+    overwrite: false
+    include:
+      - "**/*.{yaml,yml,lua,json}"
+      - "**/help/"
+      - "**/snippets/snippets/"
+  - name: "keyd/default.conf"
+    dest: "/etc/keyd/default.conf"
+    os: ["linux"]
