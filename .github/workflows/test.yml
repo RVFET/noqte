@@ -3,8 +3,22 @@ name: Pytest Tests
 on:
   push:
     branches: [master]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
+      - ".github/workflows/test.yml"
   pull_request:
     branches: [master]
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".python-version"
+      - ".github/workflows/test.yml"
 
 jobs:
   test:
