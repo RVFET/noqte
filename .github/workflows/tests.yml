@@ -1,13 +1,14 @@
-name: CI
+name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
-  lint-and-test:
+  test:
+    name: Pytest (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -24,12 +25,6 @@ jobs:
 
       - name: Set up Python
         run: uv python install ${{ matrix.python-version }}
-
-      - name: Lint with Ruff
-        run: uv run ruff check --output-format=github
-
-      - name: Check Formatting with Ruff
-        run: uv run ruff format --check
 
       - name: Run Test Suite
         run: uv run pytest -v

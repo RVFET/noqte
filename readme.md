@@ -1,6 +1,13 @@
 # noqte (nöqtə)
 
-Fast, declarative dotfiles and package manager with in-memory `age` encryption, multi-package-manager support, and toggleable safety rollbacks.
+[![Lint](https://github.com/RVFET/noqte/actions/workflows/lint.yml/badge.svg)](https://github.com/RVFET/noqte/actions/workflows/lint.yml)
+[![Tests](https://github.com/RVFET/noqte/actions/workflows/test.yml/badge.svg)](https://github.com/RVFET/noqte/actions/workflows/test.yml)
+[![Python Version](https://img.shields.io/badge/python-%3E%3D3.12-3776AB.svg?logo=python&logoColor=white)](https://www.python.org)
+[![Ruff](https://img.shields.io/badge/ruff-%3E%3D0.6.0-261230.svg?logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+Git based declarative dotfiles manager and machine bootstrapper. Noqte uses real-file replacement instead of symlinks. Features in-memory file/folder encryption for secrets, multi-OS package syncing, and layered safety rollbacks, all of which is configured from a single `noqte.yaml`.
 
 Repository: [https://github.com/rvfet/noqte](https://github.com/rvfet/noqte)
 
