@@ -10,15 +10,20 @@
 
 Git based declarative dotfiles manager and machine bootstrapper. Noqte uses real-file replacement instead of symlinks. Features in-memory file/folder encryption for secrets, multi-OS package syncing, and layered safety rollbacks, all of which is configured from a single `noqte.yaml`.
 
-Repository: [https://github.com/rvfet/noqte](https://github.com/rvfet/noqte)
-
 ---
+
+
+> [!TIP]
+> **Check out real-world usage before you commit**
+>
+> I use nöqtə myself for my cross-platform (Arch Linux & macOS) systems at **[rvfet/dotfiles](https://github.com/rvfet/dotfiles)**. It utilizes all the features of this tool and is being used on real machines. Could be really useful for grasping the philosophy behind it.
+
 
 ## Installation
 
 Requires Python `>=3.12`. Install globally using [`uv`](https://github.com/astral-sh/uv) or `pipx`:
 
-```bash
+```shell
 uv tool install git+https://github.com/rvfet/noqte
 # or
 pipx install git+https://github.com/rvfet/noqte
@@ -142,7 +147,7 @@ configs:
 
 ### 2. Pull Existing Configs from Your Machine
 `from-host`, as the name suggests, collects current configuration files from your current machine (referred as `host`):
-```bash
+```shell
 cd ~/dotfiles
 noqte configs from-host
 ```
@@ -150,7 +155,7 @@ If an entry has `encrypted: true`, you will be prompted for an encryption passph
 
 ### 3. Deploying or Bootstrapping a Machine
 On any machine (new or existing), clone your repository and run:
-```bash
+```shell
 # Optional: audit what would change first
 noqte pkgs install --dry-run
 noqte configs to-host --dry-run
@@ -198,7 +203,7 @@ noqte configs to-host
 ### Shell Completions
 
 Generate native completions for `bash`, `zsh`, or `fish`:
-```bash
+```shell
 noqte --install-completion
 ```
 
@@ -260,7 +265,7 @@ If you have ideas for new package managers, platform fixes, or improvements, fee
 
 Before submitting a pull request, its recommended to ensure your changes pass all local quality checks to reduce conflicts:
 
-```bash
+```shell
 # Linting & Formatting
 uv run ruff check .
 uv run ruff format --check .
