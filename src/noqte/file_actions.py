@@ -189,37 +189,36 @@ def transfer_path(
 
     except PermissionError:
         log_warn(f"Permission denied on '{dest}'. Executing elevated staging transfer via sudo...")
-        stage_dir = Path(tempfile.mkdtemp(prefix="noqte_stage_"))
         try:
-            if src.is_dir():
-                allowed = build_allowed_paths(src, exclude, include)
-                ignore_func = create_ignore_callback(src, allowed)
-                shutil.copytree(
-                    src,
-                    stage_dir / "payload",
-                    symlinks=False,
-                    ignore=ignore_func,
-                    copy_function=copy_func,
-                    dirs_exist_ok=True,
-                )
-            else:
-                (stage_dir / "payload").parent.mkdir(parents=True, exist_ok=True)
-                copy_func(src, stage_dir / "payload" / src.name)
+            with tempfile.TemporaryDirectory(prefix="noqte_stage_") as stage_tmp:
+                stage_dir = Path(stage_tmp)
+                if src.is_dir():
+                    allowed = build_allowed_paths(src, exclude, include)
+                    ignore_func = create_ignore_callback(src, allowed)
+                    shutil.copytree(
+                        src,
+                        stage_dir / "payload",
+                        symlinks=False,
+                        ignore=ignore_func,
+                        copy_function=copy_func,
+                        dirs_exist_ok=True,
+                    )
+                else:
+                    (stage_dir / "payload").parent.mkdir(parents=True, exist_ok=True)
+                    copy_func(src, stage_dir / "payload" / src.name)
 
-            subprocess.run(["sudo", "mkdir", "-p", str(dest.parent)], check=True)
-            if overwrite and dest.exists() and dest.is_dir():
-                subprocess.run(["sudo", "rm", "-rf", str(dest)], check=True)
+                subprocess.run(["sudo", "mkdir", "-p", str(dest.parent)], check=True)
+                if overwrite and dest.exists() and dest.is_dir():
+                    subprocess.run(["sudo", "rm", "-rf", str(dest)], check=True)
 
-            if src.is_dir():
-                subprocess.run(["sudo", "cp", "-a", "-T", str(stage_dir / "payload"), str(dest)], check=True)
-            else:
-                subprocess.run(["sudo", "cp", "-a", str(stage_dir / "payload" / src.name), str(dest)], check=True)
-            return True
+                if src.is_dir():
+                    subprocess.run(["sudo", "cp", "-a", "-T", str(stage_dir / "payload"), str(dest)], check=True)
+                else:
+                    subprocess.run(["sudo", "cp", "-a", str(stage_dir / "payload" / src.name), str(dest)], check=True)
+                return True
         except subprocess.SubprocessError as e:
             log_error(f"Elevated transfer failed for '{dest}': {e}")
             return False
-        finally:
-            shutil.rmtree(stage_dir, ignore_errors=True)
     except Exception as e:
         log_error(f"Transfer error ({src} -> {dest}): {e}")
         return False
@@ -261,18 +260,16 @@ def write_secure_bytes(
         return True
     except PermissionError:
         log_warn(f"Permission denied on '{dest}'. Executing elevated staging transfer via sudo...")
-        stage_dir = Path(tempfile.mkdtemp(prefix="noqte_stage_"))
         try:
-            temp_file = stage_dir / dest.name
-            temp_file.write_bytes(data)
-            subprocess.run(["sudo", "mkdir", "-p", str(dest.parent)], check=True)
-            subprocess.run(["sudo", "cp", "-a", str(temp_file), str(dest)], check=True)
-            return True
+            with tempfile.TemporaryDirectory(prefix="noqte_stage_") as stage_tmp:
+                temp_file = Path(stage_tmp) / dest.name
+                temp_file.write_bytes(data)
+                subprocess.run(["sudo", "mkdir", "-p", str(dest.parent)], check=True)
+                subprocess.run(["sudo", "cp", "-a", str(temp_file), str(dest)], check=True)
+                return True
         except subprocess.SubprocessError as e:
             log_error(f"Elevated write failed for '{dest}': {e}")
             return False
-        finally:
-            shutil.rmtree(stage_dir, ignore_errors=True)
     except Exception as e:
         log_error(f"Write error for '{dest}': {e}")
         return False
@@ -316,20 +313,19 @@ def extract_tar_bytes(
         return True
     except PermissionError:
         log_warn(f"Permission denied on '{dest_dir}'. Executing elevated tar staging via sudo...")
-        stage_dir = Path(tempfile.mkdtemp(prefix="noqte_stage_tar_"))
         try:
-            with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:*") as tar:
-                tar.extractall(stage_dir, filter="data")
-            subprocess.run(["sudo", "mkdir", "-p", str(dest_dir)], check=True)
-            if overwrite and dest_dir.exists() and dest_dir.is_dir():
-                subprocess.run(["sudo", "rm", "-rf", str(dest_dir)], check=True)
-            subprocess.run(["sudo", "cp", "-a", "-T", str(stage_dir), str(dest_dir)], check=True)
-            return True
+            with tempfile.TemporaryDirectory(prefix="noqte_stage_tar_") as stage_tmp:
+                stage_dir = Path(stage_tmp)
+                with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r:*") as tar:
+                    tar.extractall(stage_dir, filter="data")
+                subprocess.run(["sudo", "mkdir", "-p", str(dest_dir)], check=True)
+                if overwrite and dest_dir.exists() and dest_dir.is_dir():
+                    subprocess.run(["sudo", "rm", "-rf", str(dest_dir)], check=True)
+                subprocess.run(["sudo", "cp", "-a", "-T", str(stage_dir), str(dest_dir)], check=True)
+                return True
         except subprocess.SubprocessError as e:
             log_error(f"Elevated tar extraction failed for '{dest_dir}': {e}")
             return False
-        finally:
-            shutil.rmtree(stage_dir, ignore_errors=True)
     except Exception as e:
         log_error(f"Tar extraction error for '{dest_dir}': {e}")
         return False
