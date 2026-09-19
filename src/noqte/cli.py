@@ -160,6 +160,9 @@ def pkgs_install(
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Audit packages and show commands without modifying system")
     ] = False,
+    manager: Annotated[
+        list[str] | None, typer.Option("--manager", "-m", help="Filter execution to specific package manager(s)")
+    ] = None,
     no_preflight: Annotated[bool, typer.Option("--no-preflight", help="Skip pre-flight system upgrade")] = False,
 ) -> None:
     """Audit and install missing packages across all configured managers."""
@@ -172,6 +175,7 @@ def pkgs_install(
         current_os=current_os,
         preflight=run_preflight,
         dry_run=dry_run,
+        selected_managers=manager,
     )
 
 

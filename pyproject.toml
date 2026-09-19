@@ -1,7 +1,7 @@
 [project]
 name = "noqte"
-version = "0.1.0"
-description = "Fast, modular, cross-platform dotfiles and package manager"
+version = "0.2.0"
+description = "Fast, modular and ergonomic cross-platform dotfiles manager."
 readme = "readme.md"
 authors = [
     { name = "RVFET", email = "me@rvfet.com" }

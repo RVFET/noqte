@@ -195,9 +195,9 @@ noqte configs to-host
 | `noqte pkgs install` | Computes the missing delta across configured package managers, runs a pre-flight system upgrade to avoid partial-upgrade breakage (can be disabled), and installs missing packages. |
 
 **Flags:**
+* `-m, --manager <name>`: Restricts execution to specific package manager(s) (supports repeated flags or comma-separated lists, e.g., `-m pacman,flatpak`). Bypasses unselected managers. Can be repeated also, e.g., `-m ir -m flatpak`, will do same thing as `-m ir,flatpak`.
 * `--dry-run`: Checks installed state across all managers and renders a terminal table of satisfied vs. missing packages with the exact shell commands that would run.
 * `--no-preflight`: Skips the system upgrade step.
-
 ---
 
 ### Shell Completions

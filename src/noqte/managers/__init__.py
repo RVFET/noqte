@@ -5,7 +5,7 @@ import sys
 from rich.table import Table
 
 from noqte.config import NoqteConfig, PackageTarget
-from noqte.logger import console, log_error, log_step
+from noqte.logger import console, log_error, log_info, log_step, log_warn
 from noqte.managers.base import PackageManager
 from noqte.managers.brew import BrewManager
 from noqte.managers.flatpak import FlatpakManager
@@ -30,9 +30,8 @@ def execute_package_pipeline(
     current_os: str,
     preflight: bool = True,
     dry_run: bool = False,
+    selected_managers: list[str] | None = None,
 ) -> None:
-    log_step(f"Auditing packages for platform: {current_os}")
-
     manager_groups: dict[str, list[PackageTarget]] = {}
     for pkg in config.packages:
         if not pkg.is_applicable(current_os):
@@ -61,6 +60,31 @@ def execute_package_pipeline(
 
         manager_groups.setdefault(mgr_name, []).append(pkg)
 
+    if selected_managers:
+        requested = {token.strip().lower() for item in selected_managers for token in item.split(",") if token.strip()}
+        configured = set(manager_groups.keys())
+        active = configured & requested
+        bypassed = configured - requested
+        unknown = requested - set(REGISTRY.keys())
+        unconfigured = (requested & set(REGISTRY.keys())) - configured
+
+        if unknown:
+            log_warn(f"Unrecognized manager(s): {', '.join(sorted(unknown))}")
+        if unconfigured:
+            log_info(f"Requested manager not present in config for {current_os}: {', '.join(sorted(unconfigured))}")
+
+        if not active:
+            log_warn("No matching configured managers found for provided selection.")
+            return
+
+        log_step(f"Auditing packages for platform: {current_os} ({', '.join(sorted(active))} only)")
+        if bypassed:
+            log_info(f"Bypassing configured managers: {', '.join(sorted(bypassed))}")
+
+        manager_groups = {k: v for k, v in manager_groups.items() if k in active}
+    else:
+        log_step(f"Auditing packages for platform: {current_os}")
+
     if dry_run:
         table = Table(title="Package Installation Audit (Dry-Run)", show_header=True)
         table.add_column("Manager", style="cyan")
@@ -71,15 +95,15 @@ def execute_package_pipeline(
             mgr = get_manager(mgr_name)
             if not mgr or not mgr.is_available():
                 for t in targets:
-                    table.add_row(mgr_name, t.name, "[yellow]Manager Missing[/yellow]")
+                    table.add_row(mgr_name, t.name, "Manager Missing")
                 continue
 
             missing_names = {t.name for t in mgr.filter_missing(targets)}
             for t in targets:
                 if t.name in missing_names:
-                    table.add_row(mgr_name, t.name, "[red]Missing (Will Install)[/red]")
+                    table.add_row(mgr_name, t.name, "Missing (Will Install)")
                 else:
-                    table.add_row(mgr_name, t.name, "[green]Satisfied[/green]")
+                    table.add_row(mgr_name, t.name, "Satisfied")
 
         console.print(table)
         console.print()

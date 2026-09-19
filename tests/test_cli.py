@@ -43,3 +43,25 @@ def test_cli_dry_run(sample_config_path: Path):
     )
     assert res_pkgs.exit_code == 0
     assert "Package Installation Audit (Dry-Run)" in res_pkgs.stdout
+
+
+def test_cli_pkgs_install_manager_filter(sample_config_path: Path):
+    from noqte.config import get_current_platform
+
+    current_os = get_current_platform()
+    target_mgr = "brew" if current_os == "darwin" else "pacman"
+
+    res = runner.invoke(
+        app,
+        ["pkgs", "install", "--config", str(sample_config_path), "--dry-run", "-m", target_mgr],
+    )
+    assert res.exit_code == 0
+    assert f"({target_mgr} only)" in res.stdout
+
+    res_unconfigured = runner.invoke(
+        app,
+        ["pkgs", "install", "--config", str(sample_config_path), "--dry-run", "-m", "flatpak"],
+    )
+    assert res_unconfigured.exit_code == 0
+    assert "Requested manager not present in config" in res_unconfigured.stdout
+    assert "No matching configured managers found" in res_unconfigured.stdout
