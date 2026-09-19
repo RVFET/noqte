@@ -29,8 +29,8 @@ def sample_config_path(tmp_path: Path, fake_home: Path) -> Path:
     config_data = {
         "repo_path": str(repo_dir),
         "settings": {
-            "backup": True,
-            "git_backup": False,
+            "local_backups": True,
+            "git_backups": False,
             "preflight": False,
         },
         "packages": [

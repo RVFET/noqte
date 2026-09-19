@@ -38,10 +38,19 @@ def get_current_platform() -> str:
     return sys.platform
 
 
+class BranchCleanupConfig(BaseModel):
+    enabled: bool = True
+    protect_today: bool = True
+    retain_daily: int = 7
+    retain_weekly: int = 4
+    retain_monthly: int = 12
+
+
 class SettingsConfig(BaseModel):
-    backup: bool = True
-    git_backup: bool = True
+    local_backups: bool = True
+    git_backups: bool = True
     preflight: bool = True
+    branch_cleanup: BranchCleanupConfig = Field(default_factory=BranchCleanupConfig)
 
 
 class MacPackageSpec(BaseModel):

@@ -35,9 +35,9 @@ app.add_typer(pkgs_app, name="pkgs")
 @configs_app.command("to-host")
 def configs_to_host(
     config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Path to noqte.yaml")] = None,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview transfers without modifying host")] = False,
-    no_backup: Annotated[bool, typer.Option("--no-backup", help="Skip creating local backup archives")] = False,
-    no_git_backup: Annotated[bool, typer.Option("--no-git-backup", help="Skip Git backup snapshot branch")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Simulate transfer without modifying filesystem")] = False,
+    no_local_backup: Annotated[bool, typer.Option("--no-local-backup", help="Disable local backup archive creation")] = False,
+    no_git_backup: Annotated[bool, typer.Option("--no-git-backup", help="Disable Git snapshot branch creation")] = False,
 ) -> None:
     """Deploy repository configs to host system."""
     config, _ = load_config(config_file)
@@ -52,29 +52,36 @@ def configs_to_host(
     if any(c.encrypted for c in applicable) and not dry_run:
         session.get_decryption_passphrase()
 
-    should_backup = config.settings.backup and not no_backup and not dry_run
-    should_git_backup = config.settings.git_backup and not no_git_backup and not dry_run
+    should_local_backup = config.settings.local_backups and not no_local_backup and not dry_run
+    should_git_backup = config.settings.git_backups and not no_git_backup and not dry_run
 
-    if should_backup:
+    if should_local_backup:
         host_paths = [c.resolve_destination() for c in applicable]
-        create_local_backup(host_paths, prefix="to_host_backup")
+        create_local_backup(host_paths, prefix="to_host_local")
 
     if should_git_backup:
-        git_create_backup_branch(repo_dir, configs_dir, applicable, current_os, session)
+        git_create_backup_branch(
+            repo_dir,
+            configs_dir,
+            applicable,
+            current_os,
+            session,
+            cleanup_config=config.settings.branch_cleanup,
+        )
 
     start = time.perf_counter()
     for entry in applicable:
         deploy_target(entry, configs_dir, session, dry_run=dry_run)
 
     elapsed = time.perf_counter() - start
-    console.print(f"\n[bold green]to-host completed in {elapsed:.3f}s.[/bold green]")
+    console.print(f"\nto-host completed in {elapsed:.3f}s.")
 
 
 @configs_app.command("from-host")
 def configs_from_host(
     config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Path to noqte.yaml")] = None,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview transfers without modifying repository")] = False,
-    no_backup: Annotated[bool, typer.Option("--no-backup", help="Skip creating local backup archives")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Simulate collection without modifying repository")] = False,
+    no_local_backup: Annotated[bool, typer.Option("--no-local-backup", help="Disable local backup archive creation")] = False,
 ) -> None:
     """Collect host configurations into the repository."""
     config, _ = load_config(config_file)
@@ -88,10 +95,10 @@ def configs_from_host(
     if any(c.encrypted for c in applicable) and not dry_run:
         session.get_encryption_passphrase()
 
-    should_backup = config.settings.backup and not no_backup and not dry_run
-    if should_backup:
+    should_local_backup = config.settings.local_backups and not no_local_backup and not dry_run
+    if should_local_backup:
         repo_paths = [get_repo_target_path(configs_dir, c) for c in applicable]
-        create_local_backup(repo_paths, prefix="from_host_backup")
+        create_local_backup(repo_paths, prefix="from_host_local")
 
     if not dry_run:
         configs_dir.mkdir(parents=True, exist_ok=True)
@@ -101,14 +108,14 @@ def configs_from_host(
         collect_target(entry, configs_dir, session, dry_run=dry_run)
 
     elapsed = time.perf_counter() - start
-    console.print(f"\n[bold green]from-host completed in {elapsed:.3f}s.[/bold green]")
+    console.print(f"\nfrom-host completed in {elapsed:.3f}s.")
 
 
 @configs_app.command("clear")
 def configs_clear(
     config_file: Annotated[Path | None, typer.Option("--config", "-c", help="Path to noqte.yaml")] = None,
-    dry_run: Annotated[bool, typer.Option("--dry-run", help="Preview clear without deleting files")] = False,
-    no_backup: Annotated[bool, typer.Option("--no-backup", help="Skip creating local backup archives")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Simulate clear without deleting files")] = False,
+    no_local_backup: Annotated[bool, typer.Option("--no-local-backup", help="Disable local backup archive creation")] = False,
 ) -> None:
     """Purge managed configurations from the local repository directory."""
     config, _ = load_config(config_file)
@@ -118,10 +125,10 @@ def configs_clear(
     log_step(f"Clearing tracked configs inside: {configs_dir}")
     applicable = [c for c in config.configs if c.is_applicable(current_os)]
 
-    should_backup = config.settings.backup and not no_backup and not dry_run
-    if should_backup:
+    should_local_backup = config.settings.local_backups and not no_local_backup and not dry_run
+    if should_local_backup:
         repo_paths = [get_repo_target_path(configs_dir, c) for c in applicable]
-        create_local_backup(repo_paths, prefix="clear_backup")
+        create_local_backup(repo_paths, prefix="clear_local")
 
     for entry in applicable:
         targets_to_remove = [get_repo_target_path(configs_dir, entry)]
@@ -163,7 +170,7 @@ def pkgs_install(
     manager: Annotated[
         list[str] | None, typer.Option("--manager", "-m", help="Filter execution to specific package manager(s)")
     ] = None,
-    no_preflight: Annotated[bool, typer.Option("--no-preflight", help="Skip pre-flight system upgrade")] = False,
+    no_preflight: Annotated[bool, typer.Option("--no-preflight", help="Skip package manager preflight upgrades")] = False,
 ) -> None:
     """Audit and install missing packages across all configured managers."""
     config, _ = load_config(config_file)

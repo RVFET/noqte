@@ -4,19 +4,19 @@ import os
 import shutil
 import subprocess
 import tarfile
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import typer
 
-from noqte.config import DotfileTarget, get_real_user_home
+from noqte.config import BranchCleanupConfig, DotfileTarget, get_real_user_home
 from noqte.crypt import PassphraseSession
-from noqte.file_actions import collect_target, is_symlink_safeguard
+from noqte.file_actions import collect_target
 from noqte.logger import console, log_error, log_info, log_warn
 
 
 def create_local_backup(paths: list[Path], prefix: str) -> Path | None:
-    existing = [p for p in paths if not is_symlink_safeguard(p, "backup target") and p.exists()]
+    existing = [p for p in paths if p.exists()]
     if not existing:
         return None
 
@@ -44,11 +44,117 @@ def create_local_backup(paths: list[Path], prefix: str) -> Path | None:
             shutil.chown(backup_dir, user=uid, group=gid)
             shutil.chown(archive_path, user=uid, group=gid)
 
-        log_info(f"Local backup archive created: [cyan]{archive_path}[/cyan]")
+        log_info(f"Local backup archive created: {archive_path}")
         return archive_path
     except Exception as e:
         log_error(f"Failed to create local backup archive: {e}")
         return None
+
+
+def prune_backup_branches(repo_dir: Path, config: BranchCleanupConfig) -> None:
+    """Prune historical backup branches using Grandfather-Father-Son retention."""
+    local_branches: set[str] = set()
+    res_local = subprocess.run(
+        ["git", "for-each-ref", "--format=%(refname:short)", "refs/heads/backup-*"],
+        cwd=repo_dir,
+        capture_output=True,
+        text=True,
+    )
+    if res_local.returncode == 0:
+        local_branches = {b.strip() for b in res_local.stdout.splitlines() if b.strip()}
+
+    remote_branches: set[str] = set()
+    res_remote = subprocess.run(
+        ["git", "for-each-ref", "--format=%(refname:short)", "refs/remotes/origin/backup-*"],
+        cwd=repo_dir,
+        capture_output=True,
+        text=True,
+    )
+    if res_remote.returncode == 0:
+        remote_branches = {b.strip().removeprefix("origin/") for b in res_remote.stdout.splitlines() if b.strip()}
+
+    all_branches = sorted(local_branches | remote_branches)
+    if not all_branches:
+        return
+
+    parsed: list[tuple[str, datetime]] = []
+    for name in all_branches:
+        raw_ts = name.removeprefix("backup-")
+        try:
+            dt = datetime.strptime(raw_ts, "%d-%m-%Y_%H%M%S")
+            parsed.append((name, dt))
+        except ValueError:
+            continue
+
+    if not parsed:
+        return
+
+    parsed.sort(key=lambda x: x[1], reverse=True)
+
+    now = datetime.now()
+    today = now.date()
+
+    keep: set[str] = set()
+    seen_days: set[date] = set()
+    seen_weeks: set[tuple[int, int]] = set()
+    seen_months: set[tuple[int, int]] = set()
+
+    for name, dt in parsed:
+        b_date = dt.date()
+        diff_days = (today - b_date).days
+
+        if b_date == today and config.protect_today:
+            keep.add(name)
+            continue
+
+        if 0 <= diff_days <= config.retain_daily:
+            if b_date not in seen_days:
+                keep.add(name)
+                seen_days.add(b_date)
+            continue
+
+        if 0 <= diff_days <= (config.retain_weekly * 7):
+            iso_year, iso_week, _ = dt.isocalendar()
+            week_key = (iso_year, iso_week)
+            if week_key not in seen_weeks:
+                keep.add(name)
+                seen_weeks.add(week_key)
+            continue
+
+        month_diff = (now.year - dt.year) * 12 + (now.month - dt.month)
+        if 0 <= month_diff < config.retain_monthly:
+            month_key = (dt.year, dt.month)
+            if month_key not in seen_months:
+                keep.add(name)
+                seen_months.add(month_key)
+            continue
+
+    res_head = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=repo_dir,
+        capture_output=True,
+        text=True,
+    )
+    if res_head.returncode == 0:
+        keep.add(res_head.stdout.strip())
+
+    to_delete = [name for name, _ in parsed if name not in keep]
+    if not to_delete:
+        return
+
+    local_to_delete = [b for b in to_delete if b in local_branches]
+    if local_to_delete:
+        subprocess.run(["git", "branch", "-D", *local_to_delete], cwd=repo_dir, capture_output=True)
+
+    remote_to_delete = [b for b in to_delete if b in remote_branches]
+    if remote_to_delete:
+        subprocess.run(
+            ["git", "push", "origin", "--delete", *remote_to_delete],
+            cwd=repo_dir,
+            capture_output=True,
+        )
+
+    log_info(f"Cleaned up {len(to_delete)} stale backup branch(es) ({len(keep)} retained).")
 
 
 def git_create_backup_branch(
@@ -57,6 +163,7 @@ def git_create_backup_branch(
     entries: list[DotfileTarget],
     current_os: str,
     session: PassphraseSession,
+    cleanup_config: BranchCleanupConfig | None = None,
 ) -> None:
     if not (repo_dir / ".git").exists():
         return
@@ -67,7 +174,7 @@ def git_create_backup_branch(
         capture_output=True,
     )
     if head_check.returncode != 0:
-        console.print("[bold yellow]Git repository has no initial commit yet.[/bold yellow]")
+        console.print("Git repository has no initial commit yet.")
         if typer.confirm("Would you like noqte to create an initial baseline commit now?", default=False):
             try:
                 subprocess.run(["git", "add", "configs/"], cwd=repo_dir, check=True)
@@ -87,9 +194,9 @@ def git_create_backup_branch(
         text=True,
     )
     if remote_check.returncode != 0:
-        console.print("[bold yellow]No Git remote 'origin' configured for this repository.[/bold yellow]")
+        console.print("No Git remote 'origin' configured for this repository.")
         if typer.confirm("Would you like to configure a remote repository now?", default=False):
-            url = console.input("[bold cyan]Enter Git remote URL: [/bold cyan]").strip()
+            url = console.input("Enter Git remote URL: ").strip()
             if url:
                 try:
                     subprocess.run(["git", "remote", "add", "origin", url], cwd=repo_dir, check=True)
@@ -182,7 +289,7 @@ def git_create_backup_branch(
             check=False,
         )
         if push_res.returncode == 0:
-            log_info(f"Pushed Git backup snapshot branch: [green]{backup_branch}[/green]")
+            log_info(f"Pushed Git backup snapshot branch: {backup_branch}")
         else:
             log_warn(f"Created local backup branch '{backup_branch}', push failed: {push_res.stderr.strip()}")
 
@@ -195,3 +302,5 @@ def git_create_backup_branch(
                 subprocess.run(["git", "branch", "-D", backup_branch], cwd=repo_dir, capture_output=True, check=False)
         if stashed:
             subprocess.run(["git", "stash", "pop"], cwd=repo_dir, capture_output=True, check=False)
+        if cleanup_config and cleanup_config.enabled:
+            prune_backup_branches(repo_dir, cleanup_config)

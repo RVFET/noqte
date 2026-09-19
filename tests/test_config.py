@@ -16,13 +16,27 @@ from noqte.config import (
 def test_config_model_validation():
     data = {
         "repo_path": "~/dotfiles",
-        "settings": {"backup": False, "git_backup": True, "preflight": False},
+        "settings": {
+            "local_backups": False,
+            "git_backups": True,
+            "preflight": False,
+            "branch_cleanup": {
+                "enabled": True,
+                "protect_today": True,
+                "retain_daily": 5,
+                "retain_weekly": 3,
+                "retain_monthly": 6,
+            },
+        },
         "packages": [{"name": "ripgrep", "os": "linux"}],
         "configs": [{"name": ".zshrc", "dest": "~/.zshrc", "os": "darwin"}],
     }
     cfg = NoqteConfig.model_validate(data)
-    assert cfg.settings.backup is False
-    assert cfg.settings.git_backup is True
+    assert cfg.settings.local_backups is False
+    assert cfg.settings.git_backups is True
+    assert cfg.settings.branch_cleanup.retain_daily == 5
+    assert cfg.settings.branch_cleanup.retain_weekly == 3
+    assert cfg.settings.branch_cleanup.retain_monthly == 6
     assert cfg.packages[0].os == ["linux"]
     assert cfg.configs[0].os == ["darwin"]
 

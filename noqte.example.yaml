@@ -5,11 +5,19 @@
 # Target location of this dotfiles repository on your machine
 repo_path: "~/dotfiles"
 
-# Operational safety toggles (all default to true if omitted)
 settings:
-  backup: true        # Mandatory local tar.gz archive in ~/.dotfiles-backups prior to changes
-  git_backup: true    # Create snapshot branch in git repo on 'to-host'
-  preflight: true     # Run OS upgrade before installing packages to prevent dependency breakage
+  local_backups: true        # Create local archive at ~/.dotfiles-backups prior to changes
+  git_backups: true          # Create snapshot branch (backup-{datetime}) in repo before to-host
+  # `branch_cleanup` auto-prunes historical backup branches to prevent branch sprawl (~25 branches max/year).
+  # Preserves all work done today, compresses previous days/weeks to single milestones,
+  # and keeps 1 archive per month. Recommended to leave as default if you are unsure what this means.
+  branch_cleanup:
+    enabled: true            # Auto-prune backup branches. If false, branches accumulate indefinitely
+    protect_today: true      # Never delete branches created today
+    retain_daily: 7          # Keep 1 branch per day for the last 7 days (prunes same-day duplicates)
+    retain_weekly: 4         # Keep 1 branch per week for the last 4 weeks
+    retain_monthly: 12       # Keep 1 branch per month for the last 12 months
+  preflight: true            # Run system upgrade before installing to avoid partial-upgrade breakage
 
 # Package Management Layer
 packages:

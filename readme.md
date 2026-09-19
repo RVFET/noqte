@@ -78,9 +78,18 @@ pipx install git+https://github.com/rvfet/noqte
 repo_path: "."
 
 settings:
-  backup: true        # Mandatory local tar.gz in ~/.dotfiles-backups before changes
-  git_backup: true    # Pre-deployment host snapshot branch pushed to Git
-  preflight: true     # Run system upgrade before installing to avoid partial-upgrade breakage
+  local_backups: true        # Create local archive at ~/.dotfiles-backups prior to changes
+  git_backups: true          # Create snapshot branch (backup-{datetime}) in repo before to-host
+  # `branch_cleanup` auto-prunes historical backup branches to prevent branch sprawl (~25 branches max/year).
+  # Preserves all work done today, compresses previous days/weeks to single milestones,
+  # and keeps 1 archive per month. Recommended to leave as default if you are unsure what this means.
+  branch_cleanup:
+    enabled: true            # Auto-prune backup branches. If false, branches accumulate indefinitely
+    protect_today: true      # Never delete branches created today
+    retain_daily: 7          # Keep 1 branch per day for the last 7 days (prunes same-day duplicates)
+    retain_weekly: 4         # Keep 1 branch per week for the last 4 weeks
+    retain_monthly: 12       # Keep 1 branch per month for the last 12 months
+  preflight: true            # Run system upgrade before installing to avoid partial-upgrade breakage
 
 packages:
   # Standard package, available on all package managers as is
@@ -182,7 +191,7 @@ noqte configs to-host
 
 **Flags:**
 * `--dry-run`: Previews all transfer, decrypt, and copy actions without touching files.
-* `--no-backup`: Skips local `.tar.gz` archive generation.
+* `--no-local-backup`: Skips local `.tar.gz` archive generation.
 * `--no-git-backup`: Skips the remote Git snapshot branch.
 * `-c, --config <path>`: Custom configuration path (defaults to `./noqte.yaml` or `~/.config/noqte/noqte.yaml`).
 
@@ -224,7 +233,7 @@ noqte --install-completion
 <summary>What specific problems does noqte solve?</summary>
 
 1. **Permission isolation without root pollution**: You never run `noqte` under `sudo`. If an operation targets a root-owned file like `/etc/environment` or `/etc/daemon.conf`, it stages that file in memory and escalates via `sudo cp` strictly for that single file.
-2. **Toggleable double-layer safety nets**: Every mutating command creates a local `.tar.gz` archive in `~/.dotfiles-backups`. `to-host` also creates an isolated Git snapshot branch of what your machine had before overwriting. Don't want backups or Git branches? Both are completely toggleable in `settings` or via `--no-backup` and `--no-git-backup` flags if you prefer running lean.
+2. **Toggleable double-layer safety nets with GFS cleanup**: Every mutating command creates a local `.tar.gz` archive in `~/.dotfiles-backups`. `to-host` also creates an isolated Git snapshot branch of what your machine had before overwriting, automatically pruned by a Grandfather-Father-Son retention policy (`branch_cleanup`) to prevent branch sprawl. Both layers are toggleable in `settings` or via `--no-local-backup` and `--no-git-backup` flags.
 3. **Public dotfile security**: Encrypts sensitive configs in memory so you can make your entire repository public on GitHub without redacting keys, managing `.gitignore` hacks, or maintaining awkward private forks.
 4. **Declarative package deltas**: Installs only what's missing across system package managers (`pacman`, `brew`), sandboxed desktop apps (`flatpak`), and release binaries (`ir`), with pre-flight updates to prevent broken dependencies on rolling distros.
 </details>
