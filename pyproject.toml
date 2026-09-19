@@ -1,6 +1,6 @@
 [project]
 name = "noqte"
-version = "0.2.0"
+version = "0.3.0"
 description = "Fast, modular and ergonomic cross-platform dotfiles manager."
 readme = "readme.md"
 authors = [

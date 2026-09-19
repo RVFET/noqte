@@ -129,3 +129,74 @@ def test_prune_backup_branches_gfs(tmp_path: Path):
     assert b_day2_old not in res_remote.stdout
     assert b_stale not in res_remote.stdout
     assert b_day2_new in res_remote.stdout
+
+
+def test_git_snapshot_ignore_diff_skips_backup(tmp_path: Path, fake_home: Path, monkeypatch):
+    monkeypatch.setenv("NOQTE_PASSPHRASE", "pass")
+    repo_dir = tmp_path / "git_repo"
+    repo_dir.mkdir()
+    configs_dir = repo_dir / "configs"
+    configs_dir.mkdir()
+
+    subprocess.run(["git", "init", "-b", "main"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "ci@test.com"], cwd=repo_dir, check=True)
+    subprocess.run(["git", "config", "user.name", "CI"], cwd=repo_dir, check=True)
+
+    readme = repo_dir / "README.md"
+    readme.write_text("init", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo_dir, check=True)
+
+    fake_remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", str(fake_remote)], check=True, capture_output=True)
+    subprocess.run(["git", "remote", "add", "origin", str(fake_remote)], cwd=repo_dir, check=True)
+
+    host_file = fake_home / ".fish_history"
+    host_file.write_text("cmd 1\ncmd 2\n", encoding="utf-8")
+
+    entry = DotfileTarget(name=".fish_history", dest="~/.fish_history", encrypted=True, ignore_diff=True)
+    session = PassphraseSession()
+
+    git_create_backup_branch(repo_dir, configs_dir, [entry], current_os="linux", session=session)
+
+    res_remote = subprocess.run(["git", "ls-remote", "--heads", "origin"], cwd=repo_dir, capture_output=True, text=True)
+    assert "backup-" not in res_remote.stdout
+
+    res_local = subprocess.run(["git", "branch", "--list"], cwd=repo_dir, capture_output=True, text=True)
+    assert "backup-" not in res_local.stdout
+
+    status_res = subprocess.run(["git", "status", "--porcelain"], cwd=repo_dir, capture_output=True, text=True)
+    assert status_res.stdout.strip() == ""
+
+
+def test_git_snapshot_ignore_diff_with_worthy_changes(tmp_path: Path, fake_home: Path, monkeypatch):
+    monkeypatch.setenv("NOQTE_PASSPHRASE", "pass")
+    repo_dir = tmp_path / "git_repo"
+    repo_dir.mkdir()
+    configs_dir = repo_dir / "configs"
+    configs_dir.mkdir()
+
+    subprocess.run(["git", "init", "-b", "main"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "ci@test.com"], cwd=repo_dir, check=True)
+    subprocess.run(["git", "config", "user.name", "CI"], cwd=repo_dir, check=True)
+
+    readme = repo_dir / "README.md"
+    readme.write_text("init", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
+    subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo_dir, check=True)
+
+    fake_remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", str(fake_remote)], check=True, capture_output=True)
+    subprocess.run(["git", "remote", "add", "origin", str(fake_remote)], cwd=repo_dir, check=True)
+
+    (fake_home / "history").write_text("timestamped log", encoding="utf-8")
+    entry_ignored = DotfileTarget(name="history", dest="~/history", ignore_diff=True)
+
+    (fake_home / ".tmux.conf").write_text("set -g status off", encoding="utf-8")
+    entry_worthy = DotfileTarget(name=".tmux.conf", dest="~/.tmux.conf")
+
+    session = PassphraseSession()
+    git_create_backup_branch(repo_dir, configs_dir, [entry_ignored, entry_worthy], current_os="linux", session=session)
+
+    res = subprocess.run(["git", "ls-remote", "--heads", "origin"], cwd=repo_dir, capture_output=True, text=True)
+    assert "backup-" in res.stdout

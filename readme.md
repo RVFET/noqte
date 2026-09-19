@@ -3,6 +3,7 @@
 [![Lint](https://github.com/RVFET/noqte/actions/workflows/lint.yml/badge.svg)](https://github.com/RVFET/noqte/actions/workflows/lint.yml)
 [![Tests](https://github.com/RVFET/noqte/actions/workflows/test.yml/badge.svg)](https://github.com/RVFET/noqte/actions/workflows/test.yml)
 [![Security](https://github.com/RVFET/noqte/actions/workflows/security.yml/badge.svg)](https://github.com/RVFET/noqte/actions/workflows/security.yml)
+[![CodeQL](https://github.com/RVFET/noqte/actions/workflows/codeql.yml/badge.svg)](https://github.com/RVFET/noqte/actions/workflows/codeql.yml)
 [![Python Version](https://img.shields.io/badge/python-%3E%3D3.12-3776AB.svg?logo=python&logoColor=white)](https://www.python.org)
 [![Ruff](https://img.shields.io/badge/ruff-%3E%3D0.6.0-261230.svg?logo=ruff&logoColor=white)](https://github.com/astral-sh/ruff)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
@@ -38,7 +39,7 @@ pipx install git+https://github.com/rvfet/noqte
 - **In-Memory `age` Encryption (Files & Directories)**: Marks sensitive targets with `encrypted: true` using Rust `rage` bindings (`pyrage`). Single files are encrypted directly; entire directories (like `~/.ssh`) are packed into an in-memory gzipped tar stream and encrypted into a single `.encrypted` file. **Plaintext never touches the disk in transit**, and file names, directory trees, and secret counts are never leaked to Git.
 - **Toggleable Safety Net (Local + Git)**:
   - *Local*: Bundles whatever is currently on your system into a timestamped `.tar.gz` archive under `~/.dotfiles-backups` before modifying anything.
-  - *Git Snapshot*: Before deploying changes, creates an isolated `backup-<timestamp>` branch in your repository, commits your host's pre-modification state, pushes it to your remote, and switches back to your original branch.
+  - *Git Snapshot*: Before deploying changes, creates an isolated `backup-<timestamp>` branch in your repository, commits your host's pre-modification state, pushes it to your remote, and switches back to your original branch. Targets with `ignore_diff: true` are excluded from diff evaluations to prevent spurious snapshots caused by volatile history files or non-deterministic encryption salts.
   - *Zero bloat*: Both mechanisms can be turned off globally or via flags if you prefer running lean.
 - **Package Delta Engine**: Queries installed packages to calculate the difference between your manifest and your machine, installing only what is missing. It runs pre-flight updates before installing to prevent broken partial upgrades on rolling distros.
 
@@ -143,10 +144,11 @@ configs:
     dest: "/etc/daemon.conf"
     os: ["linux"]
 
-  # Encrypted secret file (saved in repo as configs/.zshenv.encrypted)
-  - name: ".zshenv"
-    dest: "~/.zshenv"
+  # Volatile or encrypted target excluded from git snapshot diff checks (prevents false-positive backup branches)
+  - name: "fish_history"
+    dest: "~/.local/share/fish/fish_history"
     encrypted: true
+    ignore_diff: true
 
   # Encrypted directory (bundled in-memory as tar.gz + age; saved as configs/.zsh.encrypted; structure and metadata fully hidden)
   - name: ".zsh"

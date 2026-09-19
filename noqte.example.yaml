@@ -19,61 +19,67 @@ settings:
     retain_monthly: 12       # Keep 1 branch per month for the last 12 months
   preflight: true            # Run system upgrade before installing to avoid partial-upgrade breakage
 
-# Package Management Layer
+# Packages layer
 packages:
-  # CLI & Core Tools (default manager is pacman on Linux, brew on macOS)
+  # Standard package, available on all package managers as is
   - name: "eza"
-  - name: "bat"
-  - name: "ripgrep"
+
+  # Package with different name on macOS (pacman: choose, brew: choose-rust)
   - name: "choose"
     mac: "choose-rust"
-  - name: "github-cli"
-    mac: "gh"
-  - name: "inotify-tools"
-    os: ["linux"]
 
-  # GUI Applications
+  # GUI application (brew cask on macOS)
   - name: "ghostty"
     mac:
       cask: true
-  - name: "obs-studio"
-    mac:
-      name: "obs"
-      cask: true
 
-  # Flatpak Layer
+  # Package that's only available on one OS
+  - name: "inotify-tools"
+    os: ["linux"]
+
+  # Flatpak package (with macOS cask fallback)
   - name: "chat.simplex.simplex"
     manager: "flatpak"
     mac:
       name: "simplex"
       cask: true
-  - name: "com.github.tchx84.Flatseal"
-    manager: "flatpak"
-    os: ["linux"]
 
-  # Install-Release (ir) GitHub Binaries
+  # GitHub release binary installed directly via 'ir' (install-release)
   - name: "https://github.com/starship/starship"
     manager: "ir"
-  - name: "https://github.com/d10n/mullvad-tui"
-    manager: "ir"
 
-# Dotfile Configurations Layer
+# Config files layer
 configs:
+  # Standard dotfile
   - name: ".zshrc"
     dest: "~/.zshrc"
-  - name: "ghostty"
-    dest: "~/.config/ghostty"
+
+  # Directory with file-type glob filtering
   - name: "yazi"
     dest: "~/.config/yazi"
     include:
-      - "**/*.{toml,yaml,yml,xml,json,lua}"
+      - "**/*.{toml,yaml,yml,lua}"
+
+  # Non-destructive directory sync (merges files without wiping untracked local plugins)
   - name: "micro/plug"
     dest: "~/.config/micro/plug"
     overwrite: false
     include:
       - "**/*.{yaml,yml,lua,json}"
       - "**/help/"
-      - "**/snippets/snippets/"
-  - name: "keyd/default.conf"
-    dest: "/etc/keyd/default.conf"
+
+  # System file outside $HOME (automatically uses elevated sudo staging only for this file)
+  - name: "system/daemon.conf"
+    dest: "/etc/daemon.conf"
     os: ["linux"]
+
+  # Volatile or encrypted target excluded from git snapshot diff checks (prevents false-positive backup branches)
+  - name: "fish_history"
+    dest: "~/.local/share/fish/fish_history"
+    encrypted: true
+    ignore_diff: true
+
+  # Encrypted directory (bundled in-memory as tar.gz + age; saved as configs/.zsh.encrypted; structure and metadata fully hidden)
+  - name: ".zsh"
+    dest: "~/.zsh"
+    encrypted: true

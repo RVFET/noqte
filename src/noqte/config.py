@@ -89,6 +89,7 @@ class DotfileTarget(BaseModel):
     include: list[str] | None = None
     temporarily_own: bool = True
     encrypted: bool = False
+    ignore_diff: bool = False
 
     @field_validator("os", mode="before")
     @classmethod

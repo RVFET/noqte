@@ -75,3 +75,11 @@ def test_load_config_valid(sample_config_path: Path):
     assert path == sample_config_path
     assert len(cfg.configs) == 2
     assert len(cfg.packages) == 2
+
+
+def test_dotfile_target_ignore_diff():
+    target_default = DotfileTarget(name=".bashrc", dest="~/.bashrc")
+    assert target_default.ignore_diff is False
+
+    target_ignored = DotfileTarget(name=".bashrc", dest="~/.bashrc", ignore_diff=True)
+    assert target_ignored.ignore_diff is True

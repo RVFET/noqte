@@ -11,7 +11,7 @@ import typer
 
 from noqte.config import BranchCleanupConfig, DotfileTarget, get_real_user_home
 from noqte.crypt import PassphraseSession
-from noqte.file_actions import collect_target
+from noqte.file_actions import collect_target, get_repo_target_path
 from noqte.logger import console, log_error, log_info, log_warn
 
 
@@ -259,9 +259,22 @@ def git_create_backup_branch(
 
         subprocess.run(["git", "add", "configs/"], cwd=repo_dir, capture_output=True, text=True, check=True)
 
-        diff_res = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=repo_dir, check=False)
+        exclude_args = [
+            f":(exclude){get_repo_target_path(configs_dir, e).relative_to(repo_dir).as_posix()}"
+            for e in entries
+            if e.is_applicable(current_os) and e.ignore_diff
+        ]
+
+        diff_res = subprocess.run(
+            ["git", "diff", "--cached", "--quiet", "--", "configs/", *exclude_args],
+            cwd=repo_dir,
+            check=False,
+        )
         if diff_res.returncode == 0:
-            log_info("Git snapshot: Host and repository are identical (no diff). Skipping backup branch.")
+            log_info(
+                "Git snapshot: Host and repository are identical (or no changes outside ignore_diff entries). "
+                "Skipping backup branch."
+            )
             return
 
         diff_status = subprocess.run(
@@ -297,6 +310,9 @@ def git_create_backup_branch(
         log_error(f"Git snapshot backup exception: {e}")
     finally:
         if original_ref:
+            if not committed:
+                subprocess.run(["git", "reset", "--hard", "HEAD"], cwd=repo_dir, capture_output=True, check=False)
+                subprocess.run(["git", "clean", "-fd", "configs/"], cwd=repo_dir, capture_output=True, check=False)
             subprocess.run(["git", "checkout", original_ref], cwd=repo_dir, capture_output=True, check=False)
             if not committed:
                 subprocess.run(["git", "branch", "-D", backup_branch], cwd=repo_dir, capture_output=True, check=False)
